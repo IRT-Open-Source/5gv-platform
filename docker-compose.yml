@@ -1,0 +1,181 @@
+version: "3"
+services:
+  message-broker:
+    container_name: message-broker
+    image: message-broker:latest
+    ports:
+      - "4222:4222"
+      - "8222:8222"
+    command:
+      - "--store"
+      - "FILE"
+      - "--dir"
+      - "/data/msg"
+    volumes:
+      - ../message-broker/data:/data
+    networks:
+      vpcbr:
+        ipv4_address: 172.23.0.2
+
+  state-db:
+    image: mongo:latest
+    container_name: state-db
+    environment:
+      - MONGO_INITDB_DATABASE=state-db
+      - MONGO_INITDB_ROOT_USERNAME=root
+      - MONGO_INITDB_ROOT_PASSWORD=admin
+    ports:
+      - 27017:27017
+    volumes:
+      - state-db_data_container:/data/db
+    networks:
+      vpcbr:
+        ipv4_address: 172.23.0.8
+
+  state-api:
+    container_name: state-api
+    image: state-api
+    volumes:
+      - ../state-api:/usr/state-api
+    command: [npm, "run", "start:dev"]
+    depends_on:
+      - state-db
+    ports:
+      - 3000:3000
+    networks:
+      vpcbr:
+        ipv4_address: 172.23.0.9
+
+  cache:
+    container_name: cache
+    image: cache:latest
+    ports:
+      - "8080:8080"
+    volumes:
+      - ../cache/cache:/data/cache
+      - ../cache/www:/data/www:ro
+      - ../cache/conf:/etc/nginx:ro
+    command: [nginx-debug, "-g", "daemon off;"]
+    networks:
+      vpcbr:
+        ipv4_address: 172.23.0.3
+        aliases:
+          - "cache.cache"
+
+  cache-monitor:
+    container_name: cache-monitor
+    image: cache-monitor:latest
+    ports:
+      - "3002:3002"
+    volumes:
+      - ../cache-monitor:/usr/monitor
+      - ../cache/cache:/data/cache
+    command: [npm, "run", "start:dev"]
+    depends_on:
+      - message-broker
+      - cache
+      - state-api
+    networks:
+      vpcbr:
+        ipv4_address: 172.23.0.4
+
+  aggregator:
+    container_name: aggregator
+    image: aggregator:latest
+    volumes:
+      - ../aggregator:/usr/aggregator
+    command: [npm, "run", "start:dev"]
+    depends_on:
+      - message-broker
+      - state-api
+    networks:
+      vpcbr:
+        ipv4_address: 172.23.0.5
+
+  prefetcher:
+    container_name: prefetcher
+    image: prefetcher:latest
+    volumes:
+      - ../prefetcher:/usr/prefetcher
+    command: [npm, "run", "start:dev"]
+    depends_on:
+      - message-broker
+      - cache
+      - state-api
+    extra_hosts:
+      cache: 172.23.0.3
+    networks:
+      vpcbr:
+        ipv4_address: 172.23.0.6
+    dns: 172.23.0.12
+
+  configurator-ui:
+    container_name: configurator-ui
+    image: configurator-ui:latest
+    ports:
+      - "4200:4200"
+    volumes:
+      - ../configurator-ui:/usr/configurator-ui
+      - /usr/configurator-ui/node_modules
+      - /usr/configurator-ui/dist
+    command: [ng, "serve", "--host", "0.0.0.0"]
+    depends_on:
+      - aggregator
+    networks:
+      vpcbr:
+        ipv4_address: 172.23.0.7
+
+  train-resolver:
+    container_name: train-resolver
+    image: train-resolver
+    ports:
+      - "3003:3003"
+    volumes:
+      - ../train-resolver:/usr/train-resolver
+    command: [npm, "run", "start:dev"]
+    depends_on:
+      - cache
+    networks:
+      vpcbr:
+        ipv4_address: 172.23.0.10
+
+  manifest-transformer:
+    container_name: manifest-transformer
+    image: manifest-transformer
+    ports:
+      - "3004:3004"
+    volumes:
+      - ../manifest-transformer:/usr/manifest-transformer
+    command: [npm, "run", "start:dev"]
+    depends_on:
+      - cache
+    networks:
+      vpcbr:
+        ipv4_address: 172.23.0.11
+
+  # Needed to resolve *.cache
+  # DNS of default network can not resolve wildcard hostnames
+  dns:
+    container_name: dns
+    restart: always
+    image: strm/dnsmasq
+    volumes:
+      - ./dnsmasq.conf:/etc/dnsmasq.conf
+    cap_add:
+      - NET_ADMIN
+    networks:
+      vpcbr:
+        ipv4_address: 172.23.0.12
+    expose:
+      - 53
+
+volumes:
+  state-db_data_container:
+
+# Custom network needed so we can assign a static IP address to DNS
+networks:
+  vpcbr:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.23.0.0/16
