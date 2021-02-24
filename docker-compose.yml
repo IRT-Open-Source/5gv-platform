@@ -1,8 +1,8 @@
 version: "3"
 services:
-  message-broker:
-    container_name: message-broker
-    image: message-broker:latest
+  5gv-message-broker:
+    container_name: 5gv-message-broker
+    image: 5gv-message-broker:latest
     ports:
       - "4222:4222"
       - "8222:8222"
@@ -12,14 +12,14 @@ services:
       - "--dir"
       - "/data/msg"
     volumes:
-      - ../message-broker/data:/data
+      - ../5gv-message-broker/data:/data
     networks:
       vpcbr:
         ipv4_address: 172.23.0.2
 
-  state-db:
+  5gv-state-db:
     image: mongo:latest
-    container_name: state-db
+    container_name: 5gv-state-db
     environment:
       - MONGO_INITDB_DATABASE=state-db
       - MONGO_INITDB_ROOT_USERNAME=root
@@ -27,34 +27,35 @@ services:
     ports:
       - 27017:27017
     volumes:
-      - state-db_data_container:/data/db
+      - 5gv-state-db_data_container:/data/db
     networks:
       vpcbr:
         ipv4_address: 172.23.0.8
 
-  state-api:
-    container_name: state-api
-    image: state-api
+  5gv-state-api:
+    container_name: 5gv-state-api
+    image: 5gv-state-api
     volumes:
-      - ../state-api:/usr/state-api
+      - ../5gv-state-api:/usr/state-api
+      - /usr/state-api/node_modules
     command: [npm, "run", "start:dev"]
     depends_on:
-      - state-db
+      - 5gv-state-db
     ports:
       - 3000:3000
     networks:
       vpcbr:
         ipv4_address: 172.23.0.9
 
-  cache:
-    container_name: cache
-    image: cache:latest
+  5gv-cache:
+    container_name: 5gv-cache
+    image: 5gv-cache:latest
     ports:
       - "8080:8080"
     volumes:
-      - ../cache/cache:/data/cache
-      - ../cache/www:/data/www:ro
-      - ../cache/conf:/etc/nginx:ro
+      - ../5gv-cache/cache:/data/cache
+      - ../5gv-cache/www:/data/www:ro
+      - ../5gv-cache/conf:/etc/nginx:ro
     command: [nginx-debug, "-g", "daemon off;"]
     networks:
       vpcbr:
@@ -62,46 +63,49 @@ services:
         aliases:
           - "cache.cache"
 
-  cache-monitor:
-    container_name: cache-monitor
-    image: cache-monitor:latest
+  5gv-cache-monitor:
+    container_name: 5gv-cache-monitor
+    image: 5gv-cache-monitor:latest
     ports:
       - "3002:3002"
     volumes:
-      - ../cache-monitor:/usr/monitor
-      - ../cache/cache:/data/cache
+      - ../5gv-cache-monitor:/usr/monitor
+      - /usr/monitor/node_modules
+      - ../5gv-cache/cache:/data/cache
     command: [npm, "run", "start:dev"]
     depends_on:
-      - message-broker
-      - cache
-      - state-api
+      - 5gv-message-broker
+      - 5gv-cache
+      - 5gv-state-api
     networks:
       vpcbr:
         ipv4_address: 172.23.0.4
 
-  aggregator:
-    container_name: aggregator
-    image: aggregator:latest
+  5gv-aggregator:
+    container_name: 5gv-aggregator
+    image: 5gv-aggregator:latest
     volumes:
-      - ../aggregator:/usr/aggregator
+      - ../5gv-aggregator:/usr/aggregator
+      - /usr/aggregator/node_modules
     command: [npm, "run", "start:dev"]
     depends_on:
-      - message-broker
-      - state-api
+      - 5gv-message-broker
+      - 5gv-state-api
     networks:
       vpcbr:
         ipv4_address: 172.23.0.5
 
-  prefetcher:
-    container_name: prefetcher
-    image: prefetcher:latest
+  5gv-prefetcher:
+    container_name: 5gv-prefetcher
+    image: 5gv-prefetcher:latest
     volumes:
-      - ../prefetcher:/usr/prefetcher
+      - ../5gv-prefetcher:/usr/prefetcher
+      - /usr/prefetcher/node_modules
     command: [npm, "run", "start:dev"]
     depends_on:
-      - message-broker
-      - cache
-      - state-api
+      - 5gv-message-broker
+      - 5gv-cache
+      - 5gv-state-api
     extra_hosts:
       cache: 172.23.0.3
     networks:
@@ -109,46 +113,48 @@ services:
         ipv4_address: 172.23.0.6
     dns: 172.23.0.12
 
-  configurator-ui:
-    container_name: configurator-ui
-    image: configurator-ui:latest
+  5gv-configurator-ui:
+    container_name: 5gv-configurator-ui
+    image: 5gv-configurator-ui:latest
     ports:
       - "4200:4200"
     volumes:
-      - ../configurator-ui:/usr/configurator-ui
+      - ../5gv-configurator-ui:/usr/configurator-ui
       - /usr/configurator-ui/node_modules
       - /usr/configurator-ui/dist
     command: [ng, "serve", "--host", "0.0.0.0"]
     depends_on:
-      - aggregator
+      - 5gv-aggregator
     networks:
       vpcbr:
         ipv4_address: 172.23.0.7
 
-  train-resolver:
-    container_name: train-resolver
-    image: train-resolver
+  5gv-train-resolver:
+    container_name: 5gv-train-resolver
+    image: 5gv-train-resolver
     ports:
       - "3003:3003"
     volumes:
-      - ../train-resolver:/usr/train-resolver
+      - ../5gv-train-resolver:/usr/train-resolver
+      - /usr/train-resolver/node_modules
     command: [npm, "run", "start:dev"]
     depends_on:
-      - cache
+      - 5gv-cache
     networks:
       vpcbr:
         ipv4_address: 172.23.0.10
 
-  manifest-transformer:
-    container_name: manifest-transformer
-    image: manifest-transformer
+  5gv-manifest-transformer:
+    container_name: 5gv-manifest-transformer
+    image: 5gv-manifest-transformer
     ports:
       - "3004:3004"
     volumes:
-      - ../manifest-transformer:/usr/manifest-transformer
+      - ../5gv-manifest-transformer:/usr/manifest-transformer
+      - /usr/manifest-transformer/node_modules
     command: [npm, "run", "start:dev"]
     depends_on:
-      - cache
+      - 5gv-cache
     networks:
       vpcbr:
         ipv4_address: 172.23.0.11
@@ -170,7 +176,7 @@ services:
       - 53
 
 volumes:
-  state-db_data_container:
+  5gv-state-db_data_container:
 
 # Custom network needed so we can assign a static IP address to DNS
 networks:
