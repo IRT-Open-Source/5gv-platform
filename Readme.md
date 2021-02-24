@@ -154,10 +154,8 @@ In order to run the [Sample Streaming Client](../../../5gv-sample-streaming-clie
 **Run**:
 
 ```bash
-$ ./up.sh <private_key_name>
+$ ./up.sh
 ```
-
-`private_key_name` ist the name of the private ssh key you use to authenticate via ssh at the 5G-VICTORI git repository.
 
 The script will:
 
